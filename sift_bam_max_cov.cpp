@@ -28,7 +28,7 @@ void insert_or_increment(std::map<int32_t, int32_t> & pos_map, int32_t rpos) {
         ++(it->second);
     }
     else {
-        pos_map.insert(std::pair<int32_t, int32_t>(rpos, 1));
+        pos_map.insert({rpos, 1});
     }
 }
 
@@ -90,6 +90,29 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
 
+    // check that sort order (SO) flag is set
+    std::string tmp_text(input_header->text, input_header->l_text);
+    size_t start_pos = tmp_text.find("@HD");
+    if (start_pos == std::string::npos) {
+        fprintf(stderr, "Error, missing @HD field in header.\n");
+        return EXIT_FAILURE;
+    }
+    size_t end_pos = tmp_text.find("\n", start_pos);
+    if (end_pos == std::string::npos) {
+        end_pos = tmp_text.length();
+    }
+    tmp_text = tmp_text.substr(start_pos, end_pos - start_pos);
+    start_pos = tmp_text.find("SO:");
+    if (start_pos == std::string::npos) {
+        fprintf(stderr, "Error, missing SO field in @HD header line.\n");
+        return EXIT_FAILURE;
+    }
+    tmp_text.find("coordinate", start_pos);
+    if (start_pos == std::string::npos) {
+        fprintf(stderr, "Error, file is not coordinate sorted.\n");
+        return EXIT_FAILURE;
+    }
+
     strcpy(modew, "w");
     if (clevel >= 0 && clevel <= 9) sprintf(modew + 1, "%d", clevel);
     if (flag & WRITE_CRAM) strcat(modew, "c");
@@ -108,22 +131,17 @@ int main(int argc, char *argv[])
         exit_code = 1;
     }
 
-
     // map for start/end positions of alignments that are already selected
-    // std::map<uint_fast32_t, int32_t> starts;
-    // std::map<uint_fast32_t, int32_t> ends;
     std::map<int32_t, int32_t> starts;
     std::map<int32_t, int32_t> ends;
 
     // keep a set of mate reads we decided to keep when encountering the first read
-    // std::unordered_set<std::string>
-    // std::set<std::pair<std::string, int32_t>> mates_to_keep = std::set<std::pair<std::string, int32_t>>();
     std::set<std::string> mates_to_keep[input_header->n_targets];
 
     bam1_t *aln = bam_init1(); //initialize an alignment
-    int32_t current_rname_index; // index compared to header: input_header->target_name[current_rname_index]
+    int32_t current_rname_index = 0; // index compared to header: input_header->target_name[current_rname_index]
     int32_t current_coverage = 0;
-    // uint_fast32_t current_pos = 0;
+
     int32_t current_pos = 0;
 
     while(sam_read1(in, input_header, aln) > 0) {
@@ -131,11 +149,10 @@ int main(int argc, char *argv[])
         if (current_rname_index != aln->core.tid) {
             // should have finished writing reads from current_rname_index contig, so can just reset vars
             current_coverage = 0;
-            // starts = std::map<uint_fast32_t, int>();
             starts.clear();
-            // ends = std::map<uint_fast32_t, int>();
             ends.clear();
-            // mates_to_keep.clear();
+            mates_to_keep[current_rname_index].clear();
+            fprintf(stdout, "Done with chr %s.\n", input_header->target_name[current_rname_index]);
 
             current_rname_index = aln->core.tid;
         }
@@ -149,16 +166,6 @@ int main(int argc, char *argv[])
             continue;
 
         if (current_pos != aln->core.pos) { // left most position, does NOT need adjustment for reverse strand if summing their coverage
-            // while((aln->core.pos > starts.begin()->first) && (aln->core.pos > ends.begin()->first)) {
-            //     if (starts.begin()->first <= ends.begin()->first) {
-            //         current_coverage += starts.begin()->second;
-            //         starts.erase(starts.begin());
-            //     }
-            //     else {
-            //         current_coverage -= ends.begin()->second;
-            //         ends.erase(ends.begin()):
-            //     }
-            // }
 
             // add the range we want and then erase all the matching entries at once rather than 1 by 1
             auto it = starts.begin();
@@ -211,21 +218,17 @@ int main(int argc, char *argv[])
             insert_or_increment(ends, rpos);
             ++current_coverage;
 
-            // TODO save pair mate
-            // store just qname in a set, sets are per target id
-            mates_to_keep[aln->core.tid].insert(bam_get_qname(aln));
+            // save pair mate in their target reference id if not already passed (and cleared)
+            if (aln->core.mtid >= current_rname_index) {
+                mates_to_keep[aln->core.mtid].insert(bam_get_qname(aln));
+            }
             
-            // TODO output the alignment
+            // output the alignment
             if (sam_write1(out, input_header, aln) == -1) {
                 fprintf(stderr, "Could not write selected record \"%s\"\n", bam_get_qname(aln));
                 return EXIT_FAILURE;
             }
-
         }
-
-        // if (aln->flag & BAM_FREVERSE) { // if reverse strand aln
-        // }
-        // aln->data->
     }
 
     int ret;
