@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     }
 
     if (argc == optind) {  // missing input file, print help
-        fprintf(stderr, "Usage: sift_bam_max_cov [-c value] <in.bam>|<in.bam>\n");
+        fprintf(stderr, "Usage: bamsifter [-c value] <in.bam>|<in.bam>\n");
         fprintf(stderr, "\n");
         fprintf(stderr, "-c: Max coverage value.\n");
         fprintf(stderr, "-o: Output file name. Default is to stdout.\n");
