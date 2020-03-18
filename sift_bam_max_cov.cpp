@@ -5,9 +5,11 @@
 #include <string.h>
 #include <getopt.h>
 #include <stdint.h>
+#include <limits.h>
 #include <map>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "htslib/sam.h"
 #include "htslib/bgzf.h"
@@ -44,6 +46,7 @@ int main(int argc, char *argv[])
     char modew[800];
     int exit_code = 0;
     int coverage_limit = 100;
+    int similar_cigar_limit = INT_MAX;
     const char *out_name = "-";
 
     int c;  // for parsing input arguments
@@ -53,19 +56,21 @@ int main(int argc, char *argv[])
     // add option for BAM index loading (+ generation if needed) to be able to run each chromosome on a seperate thread
 
     // while ((c = getopt(argc, argv, "DSIt:i:bCul:o:N:BZ:@:M")) >= 0) {
-    while ((c = getopt(argc, argv, "c:o:")) >= 0) {
+    while ((c = getopt(argc, argv, "c:o:i:")) >= 0) {
         switch(c) {
         // case 'b': ; break;
         case 'c': coverage_limit = atoi(optarg); break;
         case 'o': out_name = optarg; break;
+        case 'i': similar_cigar_limit = atoi(optarg); break;
         }
     }
 
     if (argc == optind) {  // missing input file, print help
-        fprintf(stderr, "Usage: bamsifter [-c value] <in.bam>|<in.bam>\n");
+        fprintf(stderr, "Usage: bamsifter [-c max_coverage] [-i max_identical_cigar_pos] <in.bam>|<in.bam>\n");
         fprintf(stderr, "\n");
         fprintf(stderr, "-c: Max coverage value.\n");
         fprintf(stderr, "-o: Output file name. Default is to stdout.\n");
+        fprintf(stderr, "-i: Max number of reads with an identical cigar starting at the some position to keep.\n");
         fprintf(stderr, "File to process.\n");
         fprintf(stderr, "\n");
         return (1);
@@ -137,6 +142,7 @@ int main(int argc, char *argv[])
 
     // keep a set of mate reads we decided to keep when encountering the first read
     std::set<std::string> mates_to_keep[input_header->n_targets];
+    std::map<std::vector<uint32_t>, int> current_cigar_counts;
 
     bam1_t *aln = bam_init1(); //initialize an alignment
     int32_t current_rname_index = 0; // index compared to header: input_header->target_name[current_rname_index]
@@ -189,6 +195,9 @@ int main(int argc, char *argv[])
                 }
                 ends.erase(ends.begin(), it);
             }
+
+            current_cigar_counts.clear();
+            current_pos = aln->core.pos;
         }
 
         // if we are below the max coverage or the read has already been selected to keep through its pair
@@ -196,6 +205,23 @@ int main(int argc, char *argv[])
             (mates_to_keep[aln->core.tid].find(bam_get_qname(aln)) != mates_to_keep[aln->core.tid].end())) {
             // get cigar
             uint32_t *cigar = bam_get_cigar(aln);
+
+            if (similar_cigar_limit < coverage_limit) {
+                std::vector<uint32_t> tmp_cigar(aln->core.n_cigar);
+                std::copy(cigar, cigar + aln->core.n_cigar, tmp_cigar.begin());
+                auto it = current_cigar_counts.find(tmp_cigar);
+                if (it != current_cigar_counts.end()) {  // found
+                    if (it->second < similar_cigar_limit) {
+                        it->second++;
+                    }
+                    else {
+                        continue;
+                    }
+                }
+                else {
+                    current_cigar_counts.emplace(std::move(tmp_cigar), 1);
+                }
+            }
 
             int32_t rpos = aln->core.pos;  // update position on the ref with cigar
             for (uint32_t k = 0; k < aln->core.n_cigar; ++k) {
