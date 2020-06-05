@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
     std::map<int32_t, int32_t> ends;
 
     // keep a set of mate reads we decided to keep when encountering the first read
-    std::set<std::string> mates_to_keep[input_header->n_targets];
+    std::set<std::string> mates_to_keep;
     std::map<std::vector<uint32_t>, int> current_cigar_counts;
 
     bam1_t *aln = bam_init1(); //initialize an alignment
@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
             current_coverage = 0;
             starts.clear();
             ends.clear();
-            mates_to_keep[current_rname_index].clear();
+            // mates_to_keep[current_rname_index].clear();
             fprintf(stdout, "Done with chr %s.\n", input_header->target_name[current_rname_index]);
 
             current_rname_index = aln->core.tid;
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
 
         // if we are below the max coverage or the read has already been selected to keep through its pair
         if ((current_coverage < coverage_limit) || 
-            (mates_to_keep[aln->core.tid].find(bam_get_qname(aln)) != mates_to_keep[aln->core.tid].end())) {
+            (mates_to_keep.find(bam_get_qname(aln)) != mates_to_keep.end())) {
             // get cigar
             uint32_t *cigar = bam_get_cigar(aln);
 
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
 
             // save pair mate in their target reference id if not already passed (and cleared)
             if (aln->core.mtid >= current_rname_index) {
-                mates_to_keep[aln->core.mtid].insert(bam_get_qname(aln));
+                mates_to_keep.insert(bam_get_qname(aln));
             }
             
             // output the alignment
