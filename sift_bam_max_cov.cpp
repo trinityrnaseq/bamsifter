@@ -47,6 +47,9 @@ int main(int argc, char *argv[])
     int exit_code = 0;
     int coverage_limit = 100;
     int similar_cigar_limit = INT_MAX;
+    int keep_unmapped = 0;
+    int keep_supplementary = 0;
+    int keep_secondary = 0;
     const char *out_name = "-";
 
     int c;  // for parsing input arguments
@@ -57,11 +60,33 @@ int main(int argc, char *argv[])
 
     // while ((c = getopt(argc, argv, "DSIt:i:bCul:o:N:BZ:@:M")) >= 0) {
     while ((c = getopt(argc, argv, "c:o:i:")) >= 0) {
-        switch(c) {
-        // case 'b': ; break;
-        case 'c': coverage_limit = atoi(optarg); break;
-        case 'o': out_name = optarg; break;
-        case 'i': similar_cigar_limit = atoi(optarg); break;
+        while (1) {
+
+            static struct option long_options[] = {
+                /* These options set a flag. */
+                {"keep_unmapped",           no_argument,        &keep_unmapped,         1},
+                {"keep_supplementary",      no_argument,        &keep_supplementary,    1},
+                {"keep_secondary",          no_argument,        &keep_secondary,        1},
+
+                /* No flags set. */
+                {"coverage_limit",          required_argument,                          0, 'c'},
+                {"out_name",                required_argument,                          0, 'o'},
+                {"similar_cigar_limit",     required_argument,                          0, 'i'},
+            };
+
+            int options_index = 0;
+            c = getopt_long(argc, argv, "c:o:i:", long_options, &options_index);
+
+            if (c == -1) {
+                break;
+            }
+
+            switch (c)
+            {
+                case 'c': coverage_limit = atoi(optarg); break;
+                case 'o': out_name = optarg; break;
+                case 'i': similar_cigar_limit = atoi(optarg); break;
+            }
         }
     }
 
@@ -164,11 +189,11 @@ int main(int argc, char *argv[])
         }
 
         // make sure the read is mapped
-        if ((aln->core.flag & BAM_FUNMAP) != 0)
+        if (!keep_unmapped && ((aln->core.flag & BAM_FUNMAP) != 0))
             continue;
 
         // make sure the alignment is not a secondary alignment or a supplementary alignment
-        if ((aln->core.flag & BAM_FSECONDARY) != 0 or (aln->core.flag & BAM_FSUPPLEMENTARY) != 0)
+        if ((!keep_secondary && (aln->core.flag & BAM_FSECONDARY) != 0) || (!keep_supplementary && (aln->core.flag & BAM_FSUPPLEMENTARY) != 0))
             continue;
 
         if (current_pos != aln->core.pos) { // left most position, does NOT need adjustment for reverse strand if summing their coverage
