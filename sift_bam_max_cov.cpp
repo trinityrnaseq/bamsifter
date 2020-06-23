@@ -59,34 +59,42 @@ int main(int argc, char *argv[])
     // add option for BAM index loading (+ generation if needed) to be able to run each chromosome on a seperate thread
 
     // while ((c = getopt(argc, argv, "DSIt:i:bCul:o:N:BZ:@:M")) >= 0) {
-    while ((c = getopt(argc, argv, "c:o:i:")) >= 0) {
-        while (1) {
+    while (1) {
 
-            static struct option long_options[] = {
-                /* These options set a flag. */
-                {"keep_unmapped",           no_argument,        &keep_unmapped,         1},
-                {"keep_supplementary",      no_argument,        &keep_supplementary,    1},
-                {"keep_secondary",          no_argument,        &keep_secondary,        1},
+        static struct option long_options[] = {
+            /* These options set a flag. */
+            {"keep_unmapped",           no_argument,        &keep_unmapped,         1},
+            {"keep_supplementary",      no_argument,        &keep_supplementary,    1},
+            {"keep_secondary",          no_argument,        &keep_secondary,        1},
 
-                /* No flags set. */
-                {"coverage_limit",          required_argument,                          0, 'c'},
-                {"out_name",                required_argument,                          0, 'o'},
-                {"similar_cigar_limit",     required_argument,                          0, 'i'},
-            };
+            /* No flags set. */
+            {"coverage_limit",          required_argument,                          0, 'c'},
+            {"out_name",                required_argument,                          0, 'o'},
+            {"similar_cigar_limit",     required_argument,                          0, 'i'},
+        };
 
-            int options_index = 0;
-            c = getopt_long(argc, argv, "c:o:i:", long_options, &options_index);
+        int option_index = 0;
+        c = getopt_long(argc, argv, "c:o:i:", long_options, &option_index);
 
-            if (c == -1) {
+        if (c == -1) {
+            break;
+        }
+
+        switch (c)
+        {
+            case 0:
+                if (long_options[option_index].flag != 0)
+                    break;
+                printf("option %s", long_options[option_index].name);
+                if (optarg)
+                    printf (" with arg %s", optarg);
+                printf ("\n");
                 break;
-            }
-
-            switch (c)
-            {
-                case 'c': coverage_limit = atoi(optarg); break;
-                case 'o': out_name = optarg; break;
-                case 'i': similar_cigar_limit = atoi(optarg); break;
-            }
+            case 'c': coverage_limit = atoi(optarg); break;
+            case 'o': out_name = optarg; break;
+            case 'i': similar_cigar_limit = atoi(optarg); break;
+            default:
+                abort();
         }
     }
 
