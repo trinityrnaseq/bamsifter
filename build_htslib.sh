@@ -3,10 +3,10 @@
 set -e -v
 
 cd htslib
-mkdir build
+mkdir -p build
 autoheader
 autoconf
-./configure --prefix=`pwd`
+./configure --prefix=`pwd`/build/
 make
 make install
 
