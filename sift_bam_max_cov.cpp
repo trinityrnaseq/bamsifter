@@ -35,6 +35,16 @@ void insert_or_increment(std::map<int32_t, int32_t> & pos_map, int32_t rpos) {
 }
 
 
+void help() {
+	fprintf(stderr, "Usage: bamsifter [-c max_coverage] [-i max_identical_cigar_pos] <in.bam>|<in.bam>\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "-c: Max coverage value.\n");
+    fprintf(stderr, "-o: Output file name. Default is to stdout.\n");
+    fprintf(stderr, "-i: Max number of reads with an identical cigar starting at the some position to keep.\n");
+    fprintf(stderr, "File to process.\n");
+    fprintf(stderr, "\n");
+}
+
 int main(int argc, char *argv[])
 {
 
@@ -71,6 +81,8 @@ int main(int argc, char *argv[])
             {"coverage_limit",          required_argument,                          0, 'c'},
             {"out_name",                required_argument,                          0, 'o'},
             {"similar_cigar_limit",     required_argument,                          0, 'i'},
+
+            {NULL, 0, NULL, 0}
         };
 
         int option_index = 0;
@@ -94,19 +106,14 @@ int main(int argc, char *argv[])
             case 'o': out_name = optarg; break;
             case 'i': similar_cigar_limit = atoi(optarg); break;
             default:
-                abort();
+				help();
+                exit(2);
         }
     }
 
     if (argc == optind) {  // missing input file, print help
-        fprintf(stderr, "Usage: bamsifter [-c max_coverage] [-i max_identical_cigar_pos] <in.bam>|<in.bam>\n");
-        fprintf(stderr, "\n");
-        fprintf(stderr, "-c: Max coverage value.\n");
-        fprintf(stderr, "-o: Output file name. Default is to stdout.\n");
-        fprintf(stderr, "-i: Max number of reads with an identical cigar starting at the some position to keep.\n");
-        fprintf(stderr, "File to process.\n");
-        fprintf(stderr, "\n");
-        return (1);
+		help();
+		return (1);
     }
 
     in = sam_open(argv[optind], "r");
