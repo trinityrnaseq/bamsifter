@@ -36,11 +36,14 @@ void insert_or_increment(std::map<int32_t, int32_t> & pos_map, int32_t rpos) {
 
 
 void help() {
-	fprintf(stderr, "Usage: bamsifter [-c max_coverage] [-i max_identical_cigar_pos] <in.bam>|<in.bam>\n");
+	fprintf(stderr, "Usage: bamsifter [-c max_coverage] [-i max_identical_cigar_pos] [-o out.bam] [--FLAGS] <in.bam>\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "-c: Max coverage value.\n");
     fprintf(stderr, "-o: Output file name. Default is to stdout.\n");
     fprintf(stderr, "-i: Max number of reads with an identical cigar starting at the some position to keep.\n");
+    fprintf(stderr, "--keep_unmapped: keep unmapped reads (0x4 flag). \n");
+    fprintf(stderr, "--keep_secondary: keep alignments flagged as secondary (0x100 flag).\n");
+    fprintf(stderr, "--keep_supplementary: keep alignments flagged as supplementary (0x800 flag).\n");
     fprintf(stderr, "File to process.\n");
     fprintf(stderr, "\n");
 }
