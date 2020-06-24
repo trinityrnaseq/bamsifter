@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-
-export LD_LIBRARY_PATH=__INSTALL_PATH__/htslib:${LD_LIBRARY_PATH}
-
-exec __INSTALL_PATH__/_sift_bam_max_cov $*
-
-
