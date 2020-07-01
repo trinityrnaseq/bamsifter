@@ -44,6 +44,7 @@ void help() {
     fprintf(stderr, "--keep_unmapped: keep unmapped reads (0x4 flag). \n");
     fprintf(stderr, "--keep_secondary: keep alignments flagged as secondary (0x100 flag).\n");
     fprintf(stderr, "--keep_supplementary: keep alignments flagged as supplementary (0x800 flag).\n");
+    fprintf(stderr, "--keep_chimeric: keep chimeric alignments (SA: tag).\n");
     fprintf(stderr, "File to process.\n");
     fprintf(stderr, "\n");
 }
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
     int keep_unmapped = 0;
     int keep_supplementary = 0;
     int keep_secondary = 0;
+    int keep_chimeric = 0;
     const char *out_name = "-";
 
     int c;  // for parsing input arguments
@@ -79,6 +81,7 @@ int main(int argc, char *argv[])
             {"keep_unmapped",           no_argument,        &keep_unmapped,         1},
             {"keep_supplementary",      no_argument,        &keep_supplementary,    1},
             {"keep_secondary",          no_argument,        &keep_secondary,        1},
+            {"keep_chimeric",           no_argument,        &keep_chimeric,         1},
 
             /* No flags set. */
             {"coverage_limit",          required_argument,                          0, 'c'},
@@ -190,6 +193,7 @@ int main(int argc, char *argv[])
     bam1_t *aln = bam_init1(); //initialize an alignment
     int32_t current_rname_index = 0; // index compared to header: input_header->target_name[current_rname_index]
     int32_t current_coverage = 0;
+    bool chimeric_to_keep;
 
     int32_t current_pos = 0;
 
@@ -200,7 +204,6 @@ int main(int argc, char *argv[])
             current_coverage = 0;
             starts.clear();
             ends.clear();
-            // mates_to_keep[current_rname_index].clear();
             fprintf(stdout, "Done with chr %s.\n", input_header->target_name[current_rname_index]);
 
             current_rname_index = aln->core.tid;
@@ -210,8 +213,13 @@ int main(int argc, char *argv[])
         if (!keep_unmapped && ((aln->core.flag & BAM_FUNMAP) != 0))
             continue;
 
-        // make sure the alignment is not a secondary alignment or a supplementary alignment
-        if ((!keep_secondary && (aln->core.flag & BAM_FSECONDARY) != 0) || (!keep_supplementary && (aln->core.flag & BAM_FSUPPLEMENTARY) != 0))
+        // check if the read has a chimeric alignement and only keep if asked to
+        // then check if the alignment is a secondary alignment or a supplementary alignment, and keep only if asked to
+        chimeric_to_keep = false;
+        if (keep_chimeric && (bam_aux_get(aln, "SA") != NULL)) {
+            chimeric_to_keep = true;
+        }
+        else if ((!keep_secondary && (aln->core.flag & BAM_FSECONDARY) != 0) || (!keep_supplementary && (aln->core.flag & BAM_FSUPPLEMENTARY) != 0)) // suppl: and not chimeric tag
             continue;
 
         if (current_pos != aln->core.pos) { // left most position, does NOT need adjustment for reverse strand if summing their coverage
@@ -243,13 +251,15 @@ int main(int argc, char *argv[])
             current_pos = aln->core.pos;
         }
 
-        // if we are below the max coverage or the read has already been selected to keep through its pair
+        // if we are below the max coverage or the read has already been selected to keep through its pair or because it is chimeric
         if ((current_coverage < coverage_limit) || 
-            (mates_to_keep.find(bam_get_qname(aln)) != mates_to_keep.end())) {
+            (mates_to_keep.find(bam_get_qname(aln)) != mates_to_keep.end()) ||
+            chimeric_to_keep) {
             // get cigar
             uint32_t *cigar = bam_get_cigar(aln);
 
-            if (similar_cigar_limit < coverage_limit) {
+            // check that the cigar 
+            if ((similar_cigar_limit < coverage_limit) && !chimeric_to_keep) {
                 std::vector<uint32_t> tmp_cigar(aln->core.n_cigar);
                 std::copy(cigar, cigar + aln->core.n_cigar, tmp_cigar.begin());
                 auto it = current_cigar_counts.find(tmp_cigar);
@@ -287,12 +297,31 @@ int main(int argc, char *argv[])
             insert_or_increment(ends, rpos);
             ++current_coverage;
 
-            // save pair mate in their target reference id if not already passed (and cleared)
-            if (aln->core.mtid >= current_rname_index) {
-                mates_to_keep.insert(bam_get_qname(aln));
-            }
-            
-            // output the alignment
+            // save pair mate
+            mates_to_keep.insert(bam_get_qname(aln));
+
+        }
+    }
+
+    int ret;
+
+    // close and reopen input file to seek to start regardless of compression
+    ret = hts_close(in);
+    if (ret < 0) {
+        fprintf(stderr, "Error closing input.\n");
+        exit_code = EXIT_FAILURE;
+    }
+
+    in = sam_open(argv[optind], "r");
+    input_header = sam_hdr_read(in);
+    if (input_header == NULL) {
+        fprintf(stderr, "Couldn't read header for \"%s\"\n", argv[optind]);
+        return EXIT_FAILURE;
+    }
+
+    while (sam_read1(in, input_header, aln) > 0) {
+        // output the alignment
+        if (mates_to_keep.find(bam_get_qname(aln)) != mates_to_keep.end()) {
             if (sam_write1(out, input_header, aln) == -1) {
                 fprintf(stderr, "Could not write selected record \"%s\"\n", bam_get_qname(aln));
                 return EXIT_FAILURE;
@@ -300,8 +329,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    int ret;
-    
     ret = hts_close(in);
     if (ret < 0) {
         fprintf(stderr, "Error closing input.\n");
