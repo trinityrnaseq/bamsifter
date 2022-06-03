@@ -2,7 +2,7 @@
 #include <stdio.h>
 // #include <unistd.h>
 #include <stdlib.h>
-#include <string>
+#include <string.h>
 #include <cstring>
 #include <getopt.h>
 #include <stdint.h>
