@@ -2,8 +2,9 @@
 
 set -e -v
 
+tar xvf htslib-1.16.tar.bz2
+mv htslib-1.16 htslib
 cd htslib
-#git submodule init && git submodule update
 mkdir -p build
 autoheader
 autoconf
