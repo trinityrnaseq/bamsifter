@@ -3,7 +3,7 @@
 set -e -v
 
 cd htslib
-git submodule init && git submodule update
+#git submodule init && git submodule update
 mkdir -p build
 autoheader
 autoconf
