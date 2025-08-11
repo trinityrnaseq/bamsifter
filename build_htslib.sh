@@ -2,8 +2,8 @@
 
 set -e -v
 
-tar xvf htslib-1.16.tar.bz2
-mv htslib-1.16 htslib
+tar xvf htslib-1.22.1.tar.bz2
+mv htslib-1.22.1 htslib
 cd htslib
 mkdir -p build
 #autoheader
