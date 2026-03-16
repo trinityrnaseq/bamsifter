@@ -2,11 +2,16 @@
 
 set -e -v
 
+if [ -d "htslib" ]; then
+    rm -rf ./htslib
+fi
+
+tar xvf htslib-1.22.1.tar.bz2
+mv htslib-1.22.1 htslib
 cd htslib
-git submodule init && git submodule update
 mkdir -p build
-autoheader
-autoconf
+#autoheader
+#autoconf
 ./configure --prefix=`pwd`/build/
 make
 make install
